@@ -1,7 +1,8 @@
 <?php
 /*
-Plugin Name: Art Type Plugin
-Description: This plugin allows you to enter the art type.
+Plugin Name: Art Press Plugin
+Description: This plugin allows you to enter the art catogory, price, and paypal
+ info for sales of art.
 Version: 1.0
 Author: Niels van Hecke
 */
