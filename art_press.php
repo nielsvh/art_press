@@ -58,28 +58,46 @@ function attachment_art_info_save( $post, $attachment ) {
     if($attachment['is_art']){
         $post_ob = get_post($post->ID);
         // check to see if there is a button already
-        $button = get_post_meta($post->ID, 'PPButton');
-
-
-
+        $buttonID = get_post_meta($post->ID, 'PPButtonID', true);
+        
         $paypalService = new PayPalAPIInterfaceServiceService();
-        try {
-            $buttonSearchResponse = $paypalService->BMButtonSearch($buttonSearchReq);
-            error_log(print_r($buttonSearchResponse, true));
-        } catch (Exception $ex) {
-            require '../Error.php';
+        // There is a button, get the button from DB
+        if(count($buttonID) != 0)
+        {
+            $modifyDate = get_post_meta($post->ID, 'PPButtonModDate', true);
+            // step 1, make request type
+            $requestType = new BMButtonSearchRequestType();
+            $requestType->StartDate = $modifyDate;
+            // step 2, make request and set type
+            $buttonSearchReq = new BMButtonSearchReq();
+            $buttonSearchReq->BMButtonSearchRequest = $requestType;
+            // step 3, send request
+            try {
+                $buttonSearchResponse = $paypalService->BMButtonSearch($buttonSearchReq);
+                error_log(print_r($buttonSearchResponse, true));
+            } catch (Exception $ex) {
+                require '../Error.php';
+            }
+            // step 4, deal with the data
+            if($buttonSearchResponse && $buttonSearchResponse->ButtonSearchResult)
+                for($i = 0;$i<count($buttonSearchResponse->ButtonSearchResult);$i++)
+                {
+                    
+                }
+            // update old button
+            if($buttonID){}
+            // create new button
+            else{}
+            // set new button
         }
-        // update old button
-        if($button){}
-        // create new button
-        else{}
-        // set new button
-
-
-        update_post_meta($post['ID'], 'is_art', $attachment['is_art']);
+        else
+        {
+            
+        }
         update_post_meta( $post['ID'], 'art_type', $attachment['art_type'] );
         update_post_meta( $post['ID'], 'art_price', $attachment['art_price'] );
     }
+    update_post_meta($post['ID'], 'is_art', $attachment['is_art']);
     return $post;
 }
 
