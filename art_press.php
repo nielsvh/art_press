@@ -13,6 +13,7 @@ require('PPBootStrap.php');
 /*include krumo function (replaces var_log and print_r with human readable output) */
 require('krumo_0-2-a/class.krumo.php');
 
+/* Add attachment art script to photo upload and edit pages. */
 function add_jquery_data() {
     global $parent_file;
     
@@ -26,7 +27,8 @@ function add_jquery_data() {
 }
 
 add_filter('admin_head', 'add_jquery_data');
- 
+
+/* Add art info fields for attachments that are for sale. */
 function attachment_art_info( $form_fields, $post ) {
     $is_art = get_post_meta($post->ID, 'is_art', TRUE);
     $current_type = get_post_meta($post->ID, 'art_type', TRUE);
@@ -54,46 +56,21 @@ function attachment_art_info( $form_fields, $post ) {
 
 add_filter( 'attachment_fields_to_edit', 'attachment_art_info', 10, 2 );
 
+/* Save art info meta data and setup button information. */
 function attachment_art_info_save( $post, $attachment ) {
     if($attachment['is_art']){
-        $post_ob = get_post($post->ID);
-        // check to see if there is a button already
-        $buttonID = get_post_meta($post->ID, 'PPButtonID', true);
-        
         $paypalService = new PayPalAPIInterfaceServiceService();
-        // There is a button, get the button from DB
-        if(count($buttonID) != 0)
-        {
-            $modifyDate = get_post_meta($post->ID, 'PPButtonModDate', true);
-            // step 1, make request type
-            $requestType = new BMButtonSearchRequestType();
-            $requestType->StartDate = $modifyDate;
-            // step 2, make request and set type
-            $buttonSearchReq = new BMButtonSearchReq();
-            $buttonSearchReq->BMButtonSearchRequest = $requestType;
-            // step 3, send request
-            try {
-                $buttonSearchResponse = $paypalService->BMButtonSearch($buttonSearchReq);
-                error_log(print_r($buttonSearchResponse, true));
-            } catch (Exception $ex) {
-                require '../Error.php';
-            }
-            // step 4, deal with the data
-            if($buttonSearchResponse && $buttonSearchResponse->ButtonSearchResult)
-                for($i = 0;$i<count($buttonSearchResponse->ButtonSearchResult);$i++)
-                {
-                    
-                }
-            // update old button
-            if($buttonID){}
-            // create new button
-            else{}
-            // set new button
+        $buttonID = get_post_meta($post->ID, 'PPButtonID', TRUE);
+        if($buttonID){
+            $stamp = get_post_meta($post->ID, 'PPButtonModTStamp', TRUE);
+            $button = get_button($paypalService, $buttonID, $stamp);
+            update_button($paypalService, $button, $post->ID, $attachment);
         }
         else
         {
-            
+            make_button($paypalService, $attachment['post_title'], $attachment['art_price']);
         }
+        
         update_post_meta( $post['ID'], 'art_type', $attachment['art_type'] );
         update_post_meta( $post['ID'], 'art_price', $attachment['art_price'] );
     }
@@ -102,4 +79,84 @@ function attachment_art_info_save( $post, $attachment ) {
 }
 
 add_filter( 'attachment_fields_to_save', 'attachment_art_info_save', 10, 2 );
+
+// get button
+function get_button($paypalService, $buttonID, $modifyDate){
+    $button = NULL;
+    
+    // step 1, make request type
+    $requestType = new BMButtonSearchRequestType();
+    $requestType->StartDate = $modifyDate;
+    // step 2, make request and set type
+    $buttonSearchReq = new BMButtonSearchReq();
+    $buttonSearchReq->BMButtonSearchRequest = $requestType;
+    // step 3, send request
+    try {
+        $buttonSearchResponse = $paypalService->BMButtonSearch($buttonSearchReq);
+    } catch (Exception $ex) {
+        require '../Error.php';
+    }
+    // step 4, deal with the data
+    if($buttonSearchResponse && $buttonSearchResponse->ButtonSearchResult)
+    {
+        foreach($buttonSearchResponse->ButtonSearchResult as $a_button)
+        {
+            if($a_button->HostedButtonID == $buttonID)
+            {
+                $button = $a_button;
+                break;
+            }
+        }
+    }
+    
+    return $button;
+}
+
+// set button
+function make_button($paypalService, $itemName, $price)
+{
+    $requestType = new BMCreateButtonRequestType();
+    $requestType->ButtonType = 'CART';
+    $requestType->ButtonCode = 'HOSTED';
+    $requestType->ButtonVar = Array("item_name=" . $itemName,
+					"return=" . ART_SITE,
+					"business=" . TEST_EMAIL,
+					"amount=" . $price);
+    $request = new BMCreateButtonReq();
+    $request->BMCreateButtonRequest = $requestType;
+    
+    try {
+        $buttonResponse = $paypalService->BMCreateButton($request);
+        if($buttonResponse->Ack == "Success")
+        {
+            return $buttonResponse->HostedButtonID;
+        }
+    } catch (Exception $ex) {
+        require 'Error.php';
+        return "";
+    }
+}
+
+// update button
+function update_button($paypalService, $button, $price)
+    {
+        $requestType = new BMUpdateButtonRequestType();
+        $requestType->HostedButtonID = $button->HostedButtonID;
+        $requestType->ButtonType = $button->HButtonType;
+        $requestType->ButtonVar = Array("item_name=" . $button->ItemName,
+					"return=" . ART_SITE,
+					"business=" . TEST_EMAIL,
+					"amount=" . $price);
+        $request = new BMUpdateButtonReq();
+        $request->BMUpdateButtonRequest = $requestType;
+        try {
+            $buttonResponse = $paypalService->BMCreateButton($request);
+            if($buttonResponse->Ack == "Success")
+            {
+                return $buttonResponse->HostedButtonID;
+            }
+        } catch (Exception $ex) {
+            require 'Error.php';
+        }
+    }
 ?>
