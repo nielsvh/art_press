@@ -35,7 +35,6 @@ function attachment_art_info( $form_fields, $post ) {
     $price = get_post_meta($post->ID, 'art_price', TRUE);
     $prices = get_post_meta($post->ID, 'photo_prices', TRUE);
     $sizes = get_post_meta($post->ID, 'photo_sizes', TRUE);
-    //error_log(print_r($sizes, true));
     
 	$form_fields['art_type'] = array(
 		'label' => 'Art Information',
@@ -81,13 +80,11 @@ add_filter( 'attachment_fields_to_edit', 'attachment_art_info', 10, 2 );
 
 /* Save art info meta data and setup button information. */
 function attachment_art_info_save( $post, $attachment ) {
-    //error_log(print_r($attachment, true));
     if($attachment['is_art']){
         $paypalService = new PayPalAPIInterfaceServiceService();
         $buttonID = get_post_meta($post['ID'], 'PPButtonID', TRUE);
         $button = "";
         $button = get_button($paypalService, $buttonID);
-        
         if($attachment["art_type"] != "photo"){
             if(get_post_meta($post['ID'], 'IsTestButton', TRUE) || $buttonID && $button->Ack=='Success'){
                 $button = update_button($paypalService, $button, $post['post_title'], $attachment['art_price']);
@@ -98,10 +95,10 @@ function attachment_art_info_save( $post, $attachment ) {
         }
         else{
             if(get_post_meta($post['ID'], 'IsTestButton', TRUE) || $buttonID && $button->Ack=='Success'){
-                $button = update_option_button($paypalService, $button, $post['post_title']);
+                $button = update_option_button($paypalService, $button, $post['post_title'], $attachment['art_prices'], $attachment['art_sizes']);
             }
             else{
-                $button = make_option_button($paypalService, $post['post_title']);
+                $button = make_option_button($paypalService, $post['post_title'], $attachment['art_prices'], $attachment['art_sizes']);
             }
         }
         
@@ -186,7 +183,84 @@ function update_button($paypalService, $button, $itemName, $price)
             require '../Error.php';
         }
     }
-    
-    function make_option_button(){}
-    function update_option_button(){}
+    // set button
+    function make_option_button($paypalService, $itemName, $prices, $sizes)
+    {
+        $optionSelectDetails = Array();
+        $optionSelectDetails[0] = new OptionSelectionDetailsType();
+        $optionSelectDetails[0]->OptionSelection = "{$sizes[0]['width']}'' by {$sizes[0]['height']}'': {$prices[0]}";
+        $optionSelectDetails[0]->Price = $prices[0];
+        $optionSelectDetails[1] = new OptionSelectionDetailsType();
+        $optionSelectDetails[1]->OptionSelection = "{$sizes[1]['width']}''&quot; by {$sizes[1]['height']}'': {$prices[1]}"; 
+        $optionSelectDetails[1]->Price = $prices[1];
+        $optionSelectDetails[2] = new OptionSelectionDetailsType();
+        $optionSelectDetails[2]->OptionSelection  = "{$sizes[2]['width']}'' by {$sizes[2]['height']}'': {$prices[2]}";
+        $optionSelectDetails[2]->Price = $prices[2];
+        $optionDetails = new OptionDetailsType();
+        $optionDetails->OptionName = "Size chart";
+        $optionDetails->OptionSelectionDetails = $optionSelectDetails;
+        $requestType = new BMCreateButtonRequestType();
+        $requestType->OptionDetails = $optionDetails;
+        $requestType->ButtonType = 'CART';
+        $requestType->ButtonCode = 'HOSTED';
+        $requestType->ButtonVar = Array("item_name=" . $itemName,
+                                            "add=\"1\"",
+                                            "shopping_url=" . ART_SITE,
+                                            "return=" . ART_SITE,
+                                            "business=" . DEPLOY_EMAIL,
+                                            "tax_rate=" . TAX_RATE,
+                                            "shipping=" . FLAT_SHIPPING);
+        $request = new BMCreateButtonReq();
+        $request->BMCreateButtonRequest = $requestType;
+        
+        try {
+            $buttonResponse = $paypalService->BMCreateButton($request);
+            if($buttonResponse->Ack == "Success")
+            {
+                return $buttonResponse;
+            }
+        } catch (Exception $ex) {
+            require '../Error.php';
+        }
+        return "";
+    }
+
+    // update button
+    function update_option_button($paypalService, $button, $itemName, $prices, $sizes)
+    {
+        // set up option details
+        $optionSelectDetails = Array();
+        $optionSelectDetails[0] = new OptionSelectionDetailsType();
+        $optionSelectDetails[0]->OptionSelection = "{$sizes[0]['width']}'' by {$sizes[0]['height']}'': {$prices[0]}";
+        $optionSelectDetails[0]->Price = $prices[0];
+        $optionSelectDetails[1] = new OptionSelectionDetailsType();
+        $optionSelectDetails[1]->OptionSelection = "{$sizes[1]['width']}'' by {$sizes[1]['height']}'': {$prices[1]}"; 
+        $optionSelectDetails[1]->Price = $prices[1];
+        $optionSelectDetails[2] = new OptionSelectionDetailsType();
+        $optionSelectDetails[2]->OptionSelection  = "{$sizes[2]['width']}'' by {$sizes[2]['height']}''&quot;: {$prices[2]}";
+        $optionSelectDetails[2]->Price = $prices[2];
+        
+        // set up the option details type
+        $optionDetails = new OptionDetailsType();
+        $optionDetails->OptionName = "Size chart";
+        $optionDetails->OptionSelectionDetails = $optionSelectDetails;
+        
+        // crete the button type
+        $requestType = new BMUpdateButtonRequestType();
+        $requestType->OptionDetails = $optionDetails;
+        $requestType->HostedButtonID = $button->HostedButtonID;
+        $requestType->ButtonType = ($button->ButtonType == 'CART'?'CART':'ADDCART');
+        $requestType->ButtonCode = $button->ButtonCode;
+        $requestType->ButtonVar = Array("item_name=" . $itemName,
+                                        "tax_rate=" . TAX_RATE,
+                                        "shipping=" . FLAT_SHIPPING);
+        
+        $request = new BMUpdateButtonReq();
+        $request->BMUpdateButtonRequest = $requestType;
+        try {
+            return $paypalService->BMUpdateButton($request);
+        } catch (Exception $ex) {
+            require '../Error.php';
+        }
+    }
 ?>
