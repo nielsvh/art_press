@@ -64,14 +64,14 @@ function attachment_art_info_save( $post, $attachment ) {
         $buttonID = get_post_meta($post['ID'], 'PPButtonID', TRUE);
         $button = "";
         $button = get_button($paypalService, $buttonID);
-        if($buttonID && $button->Ack=='Success'){
+        if(get_post_meta($post['ID'], 'IsTestButton', TRUE) || $buttonID && $button->Ack=='Success'){
             $button = update_button($paypalService, $button, $post['post_title'], $attachment['art_price']);
         }
         else
         {
             $button = make_button($paypalService, $post['post_title'], $attachment['art_price']);
         }
-        update_post_meta($post['ID'], 'IsTestButton', TRUE);
+        update_post_meta($post['ID'], 'IsTestButton', IS_TESTING);
         if($button->Ack != 'Failure'){
             update_post_meta($post['ID'], 'PPButtonID', $button->HostedButtonID);
         }
@@ -111,8 +111,10 @@ function make_button($paypalService, $itemName, $price)
                                         "add=\"1\"",
                                         "shopping_url=" . ART_SITE,
                                         "return=" . ART_SITE,
-					"business=" . TEST_EMAIL,
-					"amount=" . $price);
+					"business=" . DEPLOY_EMAIL,
+					"amount=" . $price,
+                                        "tax_rate=" . TAX_RATE,
+                                        "shipping=" . FLAT_SHIPPING);
     $request = new BMCreateButtonReq();
     $request->BMCreateButtonRequest = $requestType;
     
@@ -136,7 +138,9 @@ function update_button($paypalService, $button, $itemName, $price)
         $requestType->ButtonType = ($button->ButtonType == 'CART'?'CART':'ADDCART');
         $requestType->ButtonCode = $button->ButtonCode;
         $requestType->ButtonVar = Array("item_name=" . $itemName,
-					"amount=" . $price);
+					"amount=" . $price,
+                                        "tax_rate=" . TAX_RATE,
+                                        "shipping=" . FLAT_SHIPPING);
         
         $request = new BMUpdateButtonReq();
         $request->BMUpdateButtonRequest = $requestType;
